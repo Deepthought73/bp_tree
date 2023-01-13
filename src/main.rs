@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::mem::size_of;
 use std::ops::Deref;
-use std::process::exit;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -23,7 +22,7 @@ fn array_insert<T: Debug>(array: &mut [T], index: usize, value: T, size: usize) 
     }
 }
 
-const K: usize = 16; // K = 170 fits exactly to a 4 KiB page
+const K: usize = 30; // K = 170 fits exactly to a 4 KiB page
 
 // #[repr(align(4096))] // force a node to be on one page, but faster without forces alignment
 #[derive(Clone, Debug)]
@@ -50,7 +49,7 @@ impl<T> Node<T>
         }
     }
 
-    fn insert(&mut self, key: u64, value: T) -> Option<(u64, Node<T>, Node<T>)> {
+    fn insert(&mut self, key: u64, value: T) -> Option<(u64, Ptr<T>, Node<T>, Node<T>)> {
         let index = self.keys[..self.size].binary_search(&key).err().unwrap();
 
         if self.children[0].is_some() {
@@ -60,7 +59,7 @@ impl<T> Node<T>
                 .deref()
                 .borrow_mut()
                 .insert(key, value);
-            if let Some((key, left, right)) = new_child {
+            if let Some((key, value, left, right)) = new_child {
                 self.children[index] = Some(ptr(left));
                 array_insert(
                     &mut self.children,
@@ -69,6 +68,7 @@ impl<T> Node<T>
                     self.size + 1,
                 );
                 array_insert(&mut self.keys, index, key, self.size);
+                array_insert(&mut self.values, index, Some(value), self.size);
                 self.size += 1;
             }
         } else {
@@ -82,16 +82,18 @@ impl<T> Node<T>
             let mut left = Node::new();
             left.size = m - 1;
             left.keys[..left.size].copy_from_slice(&self.keys[..m - 1]);
+            left.values[..left.size].clone_from_slice(&self.values[..m - 1]);
 
             let mut right = Node::new();
             right.size = K - m;
             right.keys[..right.size].copy_from_slice(&self.keys[m..]);
+            right.values[..right.size].clone_from_slice(&self.values[m..]);
 
             if self.children[0].is_some() {
-                left.children[..left.size + 1].clone_from_slice(&self.children[..m]);
-                right.children[..right.size + 1].clone_from_slice(&self.children[m..]);
+                left.children[..=left.size].clone_from_slice(&self.children[..m]);
+                right.children[..=right.size].clone_from_slice(&self.children[m..]);
             }
-            Some((self.keys[m - 1].clone(), left, right))
+            Some((self.keys[m - 1].clone(), self.values[m - 1].clone().unwrap(), left, right))
         } else {
             None
         }
@@ -101,6 +103,8 @@ impl<T> Node<T>
         if self.children[0].is_some() {
             match self.keys[..self.size].binary_search(&key) {
                 Ok(pos) => {
+                    //println!("{:?}", self.keys);
+                    //println!("{:?}", self.values);
                     Some(self.values[pos].as_ref().unwrap().clone())
                 }
                 Err(pos) => {
@@ -108,6 +112,8 @@ impl<T> Node<T>
                 }
             }
         } else if let Ok(pos) = self.keys[..self.size].binary_search(&key) {
+            //println!("{:?}", self.keys);
+            //println!("{:?}", self.values);
             Some(self.values[pos].as_ref().unwrap().clone())
         } else {
             None
@@ -159,9 +165,10 @@ impl<T> BPTree<T>
 
     fn insert(&mut self, key: u64, value: T) {
         let new_root = self.root.insert(key, value);
-        if let Some((key, left, right)) = new_root {
+        if let Some((key, value, left, right)) = new_root {
             let mut root = Node::new();
             root.keys[0] = key;
+            root.values[0] = Some(value);
             root.children[0] = Some(ptr(left));
             root.children[1] = Some(ptr(right));
             root.size = 1;
@@ -185,7 +192,7 @@ impl<T> BPTree<T>
 fn main() {
     println!("size of node: {:?} B", size_of::<Node<u32>>());
 
-    let n = 1000000;
+    let n = 10000000;
 
     let mut rand = thread_rng();
     let mut to_add = vec![];
@@ -199,7 +206,7 @@ fn main() {
     let mut t: BPTree<u64> = BPTree::new();
     let timer = Instant::now();
     for it in to_add.iter() {
-        t.insert(*it, 0);
+        t.insert(*it, *it);
 
         // println!("---------------");
         // println!("inserting {}", it);
@@ -211,9 +218,8 @@ fn main() {
 
     println!("is tree correct: {}", to_add == t.to_vec());
 
-    /*println!("{:?}", t.get(42));
     t.insert(42, 42);
     println!("{:?}", t.get(42));
     *t.get(42).unwrap().deref().borrow_mut() *= 2;
-    println!("{:?}", t.get(42));*/
+    println!("{:?}", t.get(42));
 }
