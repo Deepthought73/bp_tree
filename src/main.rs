@@ -1,7 +1,9 @@
 use rand::{thread_rng, RngCore};
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::mem::size_of;
 use std::ops::Deref;
+use std::process::exit;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -12,36 +14,7 @@ fn ptr<T>(a: T) -> Ptr<T> {
     Rc::new(RefCell::new(a))
 }
 
-fn find_position<T>(list: &[T], item: &T, size: usize) -> usize
-    where
-        T: Ord,
-{
-    if size == 0 {
-        0
-    } else {
-        let mut k = size / 2;
-        let mut i = k;
-        if item < &list[0] {
-            0
-        } else if item > list.last().unwrap() {
-            size
-        } else {
-            while &list[i] > item || &list[i + 1] < item {
-                if k > 1 {
-                    k /= 2;
-                }
-                if &list[i] < item {
-                    i += k;
-                } else {
-                    i -= k;
-                }
-            }
-            i + 1
-        }
-    }
-}
-
-fn array_insert<T>(array: &mut [T], index: usize, value: T, size: usize) {
+fn array_insert<T: Debug>(array: &mut [T], index: usize, value: T, size: usize) {
     if index >= size {
         array[size] = value;
     } else {
@@ -50,7 +23,7 @@ fn array_insert<T>(array: &mut [T], index: usize, value: T, size: usize) {
     }
 }
 
-const K: usize = 30; // K = 170 fits exactly to a 4 KiB page
+const K: usize = 16; // K = 170 fits exactly to a 4 KiB page
 
 // #[repr(align(4096))] // force a node to be on one page, but faster without forces alignment
 #[derive(Clone, Debug)]
@@ -66,7 +39,7 @@ struct Node<T>
 
 impl<T> Node<T>
     where
-        T: Ord + Clone,
+        T: Ord + Clone + Debug,
 {
     fn new() -> Self {
         Self {
@@ -78,7 +51,7 @@ impl<T> Node<T>
     }
 
     fn insert(&mut self, key: u64, value: T) -> Option<(u64, Node<T>, Node<T>)> {
-        let index = find_position(&self.keys, &key, self.size);
+        let index = self.keys[..self.size].binary_search(&key).err().unwrap();
 
         if self.children[0].is_some() {
             let new_child = self.children[index]
@@ -157,19 +130,28 @@ impl<T> Node<T>
             self.keys[..self.size].to_vec()
         }
     }
+
+    fn print(&self, indent: usize) {
+        println!("{: >width$}{:?}", "", &self.keys[..self.size], width = indent);
+        for c in self.children.iter() {
+            if let Some(c) = c {
+                c.deref().borrow().print(indent + 3)
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 struct BPTree<T>
     where
-        T: Ord + Clone,
+        T: Ord + Clone + Debug,
 {
     root: Node<T>,
 }
 
 impl<T> BPTree<T>
     where
-        T: Ord + Clone,
+        T: Ord + Clone + Debug,
 {
     fn new() -> Self {
         Self { root: Node::new() }
@@ -194,6 +176,10 @@ impl<T> BPTree<T>
     fn to_vec(&self) -> Vec<u64> {
         self.root.to_vec()
     }
+
+    fn print(&self) {
+        self.root.print(0)
+    }
 }
 
 fn main() {
@@ -208,21 +194,26 @@ fn main() {
         let ne = rand.next_u64();
         to_add.push(ne);
     }
-    to_add.sort();
     println!("creating {} random values: {:?}", n, timer.elapsed());
 
     let mut t: BPTree<u64> = BPTree::new();
     let timer = Instant::now();
     for it in to_add.iter() {
         t.insert(*it, 0);
+
+        // println!("---------------");
+        // println!("inserting {}", it);
+        // t.print();
     }
     println!("finished inserting: {:?}", timer.elapsed());
 
+    to_add.sort();
+
     println!("is tree correct: {}", to_add == t.to_vec());
 
-    println!("{:?}", t.get(42));
+    /*println!("{:?}", t.get(42));
     t.insert(42, 42);
     println!("{:?}", t.get(42));
     *t.get(42).unwrap().deref().borrow_mut() *= 2;
-    println!("{:?}", t.get(42));
+    println!("{:?}", t.get(42));*/
 }
