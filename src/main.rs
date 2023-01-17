@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::time::Instant;
 
 fn main() {
-    let n = 1000000;
+    let n = 10000000;
 
     let mut rand = thread_rng();
     let mut to_add = vec![];
@@ -28,16 +28,21 @@ fn main() {
     }
     println!("finished inserting (vec): {:?}", timer.elapsed());
 
-    //let mut t2 = ArrayBPTree::new();
-    //let timer = Instant::now();
-    //for it in to_add.iter() {
-    //    t2.insert(*it, *it);
-    //}
-    //println!("finished inserting (array): {:?}", timer.elapsed());
+    let mut t2 = ArrayBPTree::new();
+    let timer = Instant::now();
+    for it in to_add.iter() {
+        t2.insert(*it, *it);
+    }
+    println!("finished inserting (array): {:?}", timer.elapsed());
 
     // to_add.sort();
     // println!("is tree correct (vec): {}", to_add == t1.to_vec());
     // println!("is tree correct (array): {}", to_add == t2.to_vec());
 }
 
-// ~300ms
+/*
+
+creating 10000000 random values: 39.390883ms
+finished inserting (vec): 5.087295842s
+finished inserting (array): 4.729809602s
+ */

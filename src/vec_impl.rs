@@ -10,8 +10,8 @@ where
 {
     k: usize,
     keys: Vec<u64>,
-    values: Vec<Ptr<T>>,
-    children: Option<Vec<Ptr<VecNode<T>>>>,
+    values: Vec<T>,
+    children: Option<Vec<VecNode<T>>>,
 }
 
 impl<T> VecNode<T>
@@ -27,20 +27,20 @@ where
         }
     }
 
-    fn insert(&mut self, key: u64, value: T) -> Option<(u64, Ptr<T>, VecNode<T>, VecNode<T>)> {
+    fn insert(&mut self, key: u64, value: T) -> Option<(u64, T, VecNode<T>, VecNode<T>)> {
         let index = self.keys.binary_search(&key).err().unwrap();
 
         if let Some(children) = &mut self.children {
-            let new_child = children[index].deref().borrow_mut().insert(key, value);
+            let new_child = children[index].insert(key, value);
             if let Some((key, value, left, right)) = new_child {
-                children[index] = ptr(left);
-                children.insert(index + 1, ptr(right));
+                children[index] = left;
+                children.insert(index + 1, right);
                 self.keys.insert(index, key);
                 self.values.insert(index, value);
             }
         } else {
             self.keys.insert(index, key);
-            self.values.insert(index, ptr(value));
+            self.values.insert(index, value);
         }
 
         if self.keys.len() == self.k {
@@ -68,11 +68,11 @@ where
         }
     }
 
-    fn get(&self, key: u64) -> Option<Ptr<T>> {
+    fn get(&self, key: u64) -> Option<T> {
         if let Some(children) = &self.children {
             match self.keys.binary_search(&key) {
                 Ok(pos) => Some(self.values[pos].clone()),
-                Err(pos) => children[pos].deref().borrow().get(key),
+                Err(pos) => children[pos].get(key),
             }
         } else if let Ok(pos) = self.keys.binary_search(&key) {
             Some(self.values[pos].clone())
@@ -87,7 +87,7 @@ where
             let mut keys = self.keys.iter();
             let mut children = children.iter();
             while let Some(c) = children.next() {
-                ret.extend(c.deref().borrow().to_vec());
+                ret.extend(c.to_vec());
                 if let Some(next) = keys.next() {
                     ret.push(next.clone())
                 }
@@ -102,7 +102,7 @@ where
         println!("{: >width$}{:?}", "", self.keys, width = indent);
         if let Some(children) = &self.children {
             for c in children.iter() {
-                c.deref().borrow().print(indent + 3)
+                c.print(indent + 3)
             }
         }
     }
@@ -135,14 +135,14 @@ where
             root.keys.insert(0, key);
             root.values.insert(0, value);
             let mut v = Vec::with_capacity(root.k + 1);
-            v.insert(0, ptr(left));
-            v.insert(1, ptr(right));
+            v.insert(0, left);
+            v.insert(1, right);
             root.children = Some(v);
             self.root = root;
         }
     }
 
-    pub fn get(&self, key: u64) -> Option<Ptr<T>> {
+    pub fn get(&self, key: u64) -> Option<T> {
         self.root.get(key)
     }
 

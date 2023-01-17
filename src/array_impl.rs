@@ -2,7 +2,7 @@ use crate::util::{array_insert, ptr, Ptr};
 use std::fmt::Debug;
 use std::ops::Deref;
 
-const K: usize = 30; // K = 170 fits exactly to a 4 KiB page
+const K: usize = 64; // K = 170 fits exactly to a 4 KiB page
 
 // #[repr(align(4096))] // force a node to be on one page, but faster without forces alignment
 #[derive(Clone, Debug)]
