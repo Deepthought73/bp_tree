@@ -1,6 +1,7 @@
 use crate::util::{ptr, Ptr};
 use std::collections::LinkedList;
 use std::fmt::Debug;
+use std::mem;
 use std::ops::Deref;
 
 #[derive(Clone, Debug)]
@@ -46,20 +47,29 @@ where
         if self.keys.len() == self.k {
             let m = self.keys.len() / 2;
             let mut left = VecNode::new(self.k);
-            left.keys = self.keys[..m - 1].to_vec();
-            left.values = self.values[..m - 1].to_vec();
+
+            let keys_r = self.keys.split_off(m);
+            let values_r = self.values.split_off(m);
+
+            let key_ret = self.keys.pop().unwrap();
+            let value_ret = self.values.pop().unwrap();
+
+            left.keys = mem::take(&mut self.keys);
+            left.values = mem::take(&mut self.values);
 
             let mut right = VecNode::new(self.k);
-            right.keys = self.keys[m..].to_vec();
-            right.values = self.values[m..].to_vec();
+            right.keys = keys_r;
+            right.values = values_r;
 
-            if let Some(children) = &self.children {
-                left.children = Some(children[..m].to_vec());
-                right.children = Some(children[m..].to_vec());
+            if let Some(children) = &mut self.children {
+                let mut children = mem::take(children);
+                let children_r = children.split_off(m);
+                left.children = Some(children);
+                right.children = Some(children_r);
             }
             Some((
-                self.keys[m - 1].clone(),
-                self.values[m - 1].clone(),
+                key_ret,
+                value_ret,
                 left,
                 right,
             ))

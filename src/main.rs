@@ -21,12 +21,14 @@ fn main() {
     }
     println!("creating {} random values: {:?}", n, timer.elapsed());
 
-    let mut t1 = VecBPTree::new(64);
+    let k = 128;
+
+    let mut t1 = VecBPTree::new(k);
     let timer = Instant::now();
     for it in to_add.iter() {
         t1.insert(*it, *it);
     }
-    println!("finished inserting (vec): {:?}", timer.elapsed());
+    println!("finished inserting (vec, k = {k}): {:?}", timer.elapsed());
 
     let mut t2 = ArrayBPTree::new();
     let timer = Instant::now();
@@ -39,10 +41,3 @@ fn main() {
     // println!("is tree correct (vec): {}", to_add == t1.to_vec());
     // println!("is tree correct (array): {}", to_add == t2.to_vec());
 }
-
-/*
-
-creating 10000000 random values: 39.390883ms
-finished inserting (vec): 5.087295842s
-finished inserting (array): 4.729809602s
- */
