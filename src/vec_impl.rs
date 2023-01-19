@@ -1,65 +1,56 @@
 use crate::util::{ptr, Ptr};
-use std::collections::LinkedList;
+use std::cmp::{max_by, Ordering};
 use std::fmt::Debug;
 use std::mem;
-use std::ops::Deref;
 
 #[derive(Clone, Debug)]
 struct VecNode<T>
-where
-    T: Ord + Clone,
+    where
+        T: Clone + Default,
 {
     k: usize,
-    keys: Vec<u64>,
-    values: Vec<T>,
+    entries: Vec<(u64, T)>,
     children: Option<Vec<VecNode<T>>>,
 }
 
 impl<T> VecNode<T>
-where
-    T: Ord + Clone + Debug,
+    where
+        T: Clone + Debug + Default,
 {
     fn new(k: usize) -> Self {
         Self {
             k,
-            keys: Vec::with_capacity(k),
-            values: Vec::with_capacity(k),
+            entries: Vec::with_capacity(k),
             children: None,
         }
     }
 
-    fn insert(&mut self, key: u64, value: T) -> Option<(u64, T, VecNode<T>, VecNode<T>)> {
-        let index = self.keys.binary_search(&key).err().unwrap();
+    fn insert(&mut self, entry: (u64, T)) -> Option<((u64, T), VecNode<T>, VecNode<T>)> {
+        let index = self.entries.binary_search_by(|e| entry.0.cmp(&e.0)).err().unwrap();
 
         if let Some(children) = &mut self.children {
-            let new_child = children[index].insert(key, value);
-            if let Some((key, value, left, right)) = new_child {
+            let new_child = children[index].insert(entry);
+            if let Some((key, left, right)) = new_child {
                 children[index] = left;
                 children.insert(index + 1, right);
-                self.keys.insert(index, key);
-                self.values.insert(index, value);
+                self.entries.insert(index, key);
             }
         } else {
-            self.keys.insert(index, key);
-            self.values.insert(index, value);
+            self.entries.insert(index, entry);
         }
 
-        if self.keys.len() == self.k {
-            let m = self.keys.len() / 2;
+        if self.entries.len() == self.k {
+            let m = self.entries.len() / 2;
             let mut left = VecNode::new(self.k);
 
-            let keys_r = self.keys.split_off(m);
-            let values_r = self.values.split_off(m);
+            let keys_r = self.entries.split_off(m);
 
-            let key_ret = self.keys.pop().unwrap();
-            let value_ret = self.values.pop().unwrap();
+            let key_ret = self.entries.pop().unwrap();
 
-            left.keys = mem::take(&mut self.keys);
-            left.values = mem::take(&mut self.values);
+            left.entries = mem::take(&mut self.entries);
 
             let mut right = VecNode::new(self.k);
-            right.keys = keys_r;
-            right.values = values_r;
+            right.entries = keys_r;
 
             if let Some(children) = &mut self.children {
                 let mut children = mem::take(children);
@@ -67,49 +58,47 @@ where
                 left.children = Some(children);
                 right.children = Some(children_r);
             }
-            Some((
-                key_ret,
-                value_ret,
-                left,
-                right,
-            ))
+            Some((key_ret, left, right))
         } else {
             None
         }
     }
 
-    fn get(&self, key: u64) -> Option<T> {
-        if let Some(children) = &self.children {
-            match self.keys.binary_search(&key) {
-                Ok(pos) => Some(self.values[pos].clone()),
-                Err(pos) => children[pos].get(key),
+    fn get(&self, key: u64) -> Option<(u64, T)> {
+        match self.entries.binary_search_by(|e| key.cmp(&e.0)) {
+            Ok(pos) => Some(self.entries[pos].clone()),
+            Err(pos) => {
+                if let Some(children) = &self.children {
+                    children[pos].get(key)
+                } else {
+                    None
+                }
             }
-        } else if let Ok(pos) = self.keys.binary_search(&key) {
-            Some(self.values[pos].clone())
-        } else {
-            None
         }
     }
 
     fn to_vec(&self) -> Vec<u64> {
         if let Some(children) = &self.children {
             let mut ret = vec![];
-            let mut keys = self.keys.iter();
+            let mut keys = self.entries.iter();
             let mut children = children.iter();
             while let Some(c) = children.next() {
                 ret.extend(c.to_vec());
                 if let Some(next) = keys.next() {
-                    ret.push(next.clone())
+                    ret.push(next.0.clone())
                 }
             }
             ret
         } else {
-            self.keys.to_vec()
+            self.entries
+                .iter()
+                .map(|(key, _)| key.clone())
+                .collect()
         }
     }
 
     fn print(&self, indent: usize) {
-        println!("{: >width$}{:?}", "", self.keys, width = indent);
+        println!("{: >width$}{:?}", "", self.entries, width = indent);
         if let Some(children) = &self.children {
             for c in children.iter() {
                 c.print(indent + 3)
@@ -120,16 +109,16 @@ where
 
 #[derive(Clone, Debug)]
 pub struct VecBPTree<T>
-where
-    T: Ord + Clone + Debug,
+    where
+        T: Clone + Debug + Default,
 {
     k: usize,
     root: VecNode<T>,
 }
 
 impl<T> VecBPTree<T>
-where
-    T: Ord + Clone + Debug,
+    where
+        T: Clone + Debug + Default,
 {
     pub fn new(k: usize) -> Self {
         Self {
@@ -139,11 +128,10 @@ where
     }
 
     pub fn insert(&mut self, key: u64, value: T) {
-        let new_root = self.root.insert(key, value);
-        if let Some((key, value, left, right)) = new_root {
+        let new_root = self.root.insert((key, value));
+        if let Some((key, left, right)) = new_root {
             let mut root = VecNode::new(self.k);
-            root.keys.insert(0, key);
-            root.values.insert(0, value);
+            root.entries.insert(0, key);
             let mut v = Vec::with_capacity(root.k + 1);
             v.insert(0, left);
             v.insert(1, right);
@@ -152,7 +140,7 @@ where
         }
     }
 
-    pub fn get(&self, key: u64) -> Option<T> {
+    pub fn get(&self, key: u64) -> Option<(u64, T)> {
         self.root.get(key)
     }
 

@@ -30,14 +30,17 @@ fn main() {
     }
     println!("finished inserting (vec, k = {k}): {:?}", timer.elapsed());
 
-    let mut t2 = ArrayBPTree::new();
-    let timer = Instant::now();
-    for it in to_add.iter() {
-        t2.insert(*it, *it);
-    }
-    println!("finished inserting (array): {:?}", timer.elapsed());
+    // let mut t2 = ArrayBPTree::new();
+    // let timer = Instant::now();
+    // for it in to_add.iter() {
+    //     t2.insert(*it, *it);
+    // }
+    // println!("finished inserting (array): {:?}", timer.elapsed());
 
-    // to_add.sort();
-    // println!("is tree correct (vec): {}", to_add == t1.to_vec());
+    to_add.sort();
+    let t = t1.to_vec();
+    println!("is tree correct (vec): {}", to_add == t);
+    // println!("{:?}", to_add);
+    // println!("{:?}", t);
     // println!("is tree correct (array): {}", to_add == t2.to_vec());
 }
